@@ -1,0 +1,521 @@
+﻿@model Rasha7ly.ViewModels.DashboardViewModel
+@{
+    ViewData["Title"] = "تسجيل الجدول الدراسي";
+    // تحويل الداتا لـ JSON عشان الجافاسكريبت يفهمها ويتعامل معاها
+    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+    var dashboardDataJson = Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model, jsonOptions));
+}
+
+<div class="container-fluid my-4" dir="rtl">
+    <!-- الهيدر (شريط الخطوات) -->
+    <div class="d-flex justify-content-center align-items-center mb-4">
+        <div class="badge bg-success p-2 px-3 rounded-pill text-white mx-3 shadow-sm">3. التسجيل النهائي &check;</div>
+        <div class="text-success mx-3 fw-bold">1. المتطلبات السابقة &check;</div>
+    </div>
+
+    <div class="row g-4">
+        <!-- العمود الأيمن: المواد المتاحة -->
+        <div class="col-lg-4">
+            <div class="bg-white rounded-4 shadow-sm p-4 h-100 border">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0">المواد المتاحة</h5>
+                    <button class="btn btn-sm btn-outline-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#manualAddModal" onclick="openModalForAdd()">
+                        + إضافة يدوية
+                    </button>
+                </div>
+                <p class="text-muted small">مواد الأقسام المتاحة للتسجيل بناءً على متطلباتك.</p>
+
+                <!-- Toggle خيار آخر ترم -->
+                <div class="form-check form-switch mb-3 bg-light rounded-3 p-2 border d-flex align-items-center">
+                    <input class="form-check-input ms-2 mt-0" type="checkbox" role="switch" id="lastTermToggle">
+                    <label class="form-check-label small fw-bold mb-0" for="lastTermToggle">
+                        تفعيل خيار آخر ترم (يسمح بـ 21 ساعة)
+                    </label>
+                </div>
+
+                <!-- حاوية كروت المواد -->
+                <div id="availableCoursesList" class="overflow-auto pe-2" style="max-height: 600px;">
+                    <!-- الجافاسكريبت هيرسم الكروت هنا -->
+                </div>
+            </div>
+        </div>
+
+        <!-- العمود الأيسر: الجدول الأسبوعي والإحصائيات -->
+        <div class="col-lg-8">
+            <!-- شبكة الجدول الأسبوعي -->
+            <div class="bg-white rounded-4 shadow-sm p-4 mb-4 border">
+                <h5 class="fw-bold mb-4">الجدول الأسبوعي</h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered text-center align-middle schedule-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>السبت</th>
+                                <th>الأحد</th>
+                                <th>الاثنين</th>
+                                <th>الثلاثاء</th>
+                                <th>الأربعاء</th>
+                                <th>الخميس</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td id="day-sat" class="day-col"></td>
+                                <td id="day-sun" class="day-col"></td>
+                                <td id="day-mon" class="day-col"></td>
+                                <td id="day-tue" class="day-col"></td>
+                                <td id="day-wed" class="day-col"></td>
+                                <td id="day-thu" class="day-col"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- لوحة الإحصائيات (الساعات المتبقية) -->
+            <div class="row g-2 mb-4" id="statsBoard">
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-m1-c" class="fw-bold text-primary mb-0">@Model.Major1CompulsoryRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">إجباري (@Model.Major1Name)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-m1-e" class="fw-bold text-primary mb-0">@Model.Major1ElectiveRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">اختياري (@Model.Major1Name)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-m2-c" class="fw-bold text-info mb-0">@Model.Major2CompulsoryRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">إجباري (@Model.Major2Name)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-m2-e" class="fw-bold text-info mb-0">@Model.Major2ElectiveRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">اختياري (@Model.Major2Name)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-sup-c" class="fw-bold text-warning mb-0">@Model.SupportingCompulsoryRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">إجباري (تخدم التخصص)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-sup-e" class="fw-bold text-warning mb-0">@Model.SupportingElectiveRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">اختياري (تخدم التخصص)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="stat-univ" class="fw-bold text-success mb-0">@Model.UnivFacultyCompulsoryRemaining</h4><span class="text-muted" style="font-size: 0.7rem;">إجباري (جامعة/كلية)</span></div></div>
+                <div class="col-md-3"><div class="bg-white rounded-3 shadow-sm p-2 border text-center"><h4 id="total-registered" class="fw-bold text-dark mb-0">0</h4><span class="text-muted" style="font-size: 0.7rem;">ساعات مسجلة حالياً</span></div></div>
+            </div>
+            <!-- زرار الحفظ -->
+            <div class="d-flex justify-content-end">
+                <button id="btnSubmitRegistration" class="btn btn-dark btn-lg px-5 rounded-pill shadow">
+                    إتمام التسجيل
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal الإضافة اليدوية / التعديل -->
+<div class="modal fade" id="manualAddModal" tabindex="-1" dir="rtl">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold" id="manualModalTitle">إضافة/تعديل مادة يدوياً</h5>
+                <button type="button" class="btn-close m-0" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="m-edit-index" value="-1">
+                <div class="row g-3">
+                    <div class="col-6"><input type="text" id="m-code" class="form-control" placeholder="كود المادة (مثال: CS101)"></div>
+                    <div class="col-6"><input type="text" id="m-name" class="form-control" placeholder="اسم المادة"></div>
+                    <div class="col-6">
+                        <select id="m-day" class="form-select">
+                            <option value="السبت">السبت</option>
+                            <option value="الأحد">الأحد</option>
+                            <option value="الاثنين">الاثنين</option>
+                            <option value="الثلاثاء">الثلاثاء</option>
+                            <option value="الأربعاء">الأربعاء</option>
+                            <option value="الخميس">الخميس</option>
+                        </select>
+                    </div>
+                    <div class="col-3"><input type="text" id="m-start" class="form-control" placeholder="من (9)"></div>
+                    <div class="col-3"><input type="text" id="m-end" class="form-control" placeholder="إلى (11)"></div>
+                    <div class="col-12"><input type="number" id="m-hours" class="form-control" placeholder="الساعات المعتمدة (مثال: 3)"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-primary rounded-pill px-4" onclick="saveCourse()">حفظ وإضافة</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <style>
+        .schedule-table th {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+
+        .day-col {
+            vertical-align: top;
+            min-height: 150px;
+            min-width: 120px;
+            padding: 10px !important;
+        }
+
+        .course-card {
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            transition: 0.2s;
+            background: #fff;
+        }
+
+            .course-card:hover {
+                border-color: #dee2e6;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+            }
+
+            .course-card.conflict {
+                opacity: 0.6;
+                background-color: #fff5f5;
+                border-color: #ffc9c9;
+            }
+
+        .schedule-item {
+            background-color: #e7f1ff;
+            border-right: 4px solid #0d6efd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+            position: relative;
+        }
+
+            .schedule-item .remove-btn {
+                position: absolute;
+                top: 5px;
+                left: 5px;
+                cursor: pointer;
+                color: #dc3545;
+                font-weight: bold;
+            }
+    </style>
+
+    <script>
+        // 1. استلام الداتا من السيرفر
+        const serverData = @dashboardDataJson;
+
+        // الـ State بتاعتنا
+        let availableCourses = serverData.availableSchedule || [];
+        let selectedCourses = [];
+        let stats = {
+            m1C: serverData.major1CompulsoryRemaining,
+            m1E: serverData.major1ElectiveRemaining,
+            m2C: serverData.major2CompulsoryRemaining,
+            m2E: serverData.major2ElectiveRemaining,
+            supC: serverData.supportingCompulsoryRemaining,
+            supE: serverData.supportingElectiveRemaining,
+            univ: serverData.univFacultyCompulsoryRemaining,
+            totalRegisteredHours: 0
+        };
+
+        // 1.1 دالة تطبيع النص العربي (Normalization)
+        // المشكلة الحقيقية وراء عدم تطابق الأيام: نفس اليوم ممكن ييجي من السيرفر
+        // أو يتكتب في الكود بأشكال مختلفة للهمزة (أ / إ / آ) وهي بصريًا متشابهة
+        // جدًا لكنها Unicode code points مختلفة تمامًا، فالمقارنة المباشرة (===)
+        // بتفشل بصمت. الحل: بنوحّد كل أشكال الألف والتاء المربوطة والياء المقصورة
+        // وبنشيل أي تشكيل أو مسافات زيادة قبل أي مقارنة أو Lookup.
+        function normalizeArabic(str) {
+            if (!str) return '';
+            return str
+                .toString()
+                .trim()
+                .replace(/[\u064B-\u0652\u0670\u0640]/g, '') // شيل التشكيل والتطويل
+                .replace(/[إأآا]/g, 'ا') // توحيد كل أشكال الألف
+                .replace(/ة/g, 'ه')       // توحيد التاء المربوطة
+                .replace(/ى/g, 'ي')       // توحيد الياء المقصورة
+                .replace(/\s+/g, '');     // شيل أي مسافات داخلية
+        }
+
+        // 1.2 خريطة تربط اسم اليوم بالعربي (بعد التطبيع) بالـ ID الإنجليزي في جدول الـ DOM
+        // (بنستخدم حروف ASCII في الـ IDs تجنبًا لمشاكل الـ Encoding مع الحروف العربية)
+        const dayIdMap = {};
+        dayIdMap[normalizeArabic("السبت")] = "day-sat";
+        dayIdMap[normalizeArabic("الأحد")] = "day-sun";
+        dayIdMap[normalizeArabic("الاثنين")] = "day-mon";
+        dayIdMap[normalizeArabic("الثلاثاء")] = "day-tue";
+        dayIdMap[normalizeArabic("الأربعاء")] = "day-wed";
+        dayIdMap[normalizeArabic("الخميس")] = "day-thu";
+
+        // 2. دالة تحويل الوقت عشان نكتشف التعارض (1 الظهر = 13)
+        // بترجع null لو القيمة مش رقم صالح (مهم للـ Validation)
+        function parseTime(tStr) {
+            if (tStr === null || tStr === undefined || tStr.toString().trim() === '') return null;
+            let t = parseFloat(tStr);
+            if (isNaN(t)) return null;
+            if (t >= 1 && t <= 7) t += 12; // تحويل من مسائي لـ 24 ساعة
+            return t;
+        }
+
+        // 3. دالة فحص التعارض (Conflict Detection)
+        function hasConflict(courseToCheck) {
+            let start1 = parseTime(courseToCheck.startTime);
+            let end1 = parseTime(courseToCheck.endTime);
+            if (start1 === null || end1 === null) return false; // لو المواعيد مش محددة عديها
+
+            for (let sc of selectedCourses) {
+                if (normalizeArabic(sc.day) === normalizeArabic(courseToCheck.day)) {
+                    let start2 = parseTime(sc.startTime);
+                    let end2 = parseTime(sc.endTime);
+                    if (start2 !== null && end2 !== null) {
+                        // شرط التداخل الرياضي: البداية الأكبر أصغر من النهاية الأصغر
+                        if (Math.max(start1, start2) < Math.min(end1, end2)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // 4. رسم كروت المواد المتاحة
+        function renderAvailableCourses() {
+            const container = document.getElementById('availableCoursesList');
+            container.innerHTML = '';
+
+            availableCourses.forEach((course, index) => {
+                // هل المادة مختارة بالفعل؟
+                const isSelected = selectedCourses.some(c => c.courseCode === course.courseCode);
+                if (isSelected) return; // منرسمهاش في المتاحة لو اختارها
+
+                // هل المادة متعارضة مع الجدول الحالي؟
+                const conflict = hasConflict(course);
+
+                let actionsHtml = '';
+                let cardClass = 'course-card';
+
+                if (conflict) {
+                    cardClass += ' conflict';
+                    actionsHtml = `<button class="btn btn-sm btn-light text-danger" disabled>تعارض ميعاد</button>`;
+                } else {
+                    actionsHtml = `
+                        <div class="d-flex flex-column gap-1">
+                            <button class="btn btn-sm btn-outline-success px-3 rounded-pill" onclick="selectCourse(${index})">إضافة</button>
+                            <button class="btn btn-sm btn-outline-secondary px-3 rounded-pill" onclick="openModalForEdit(${index})">تعديل</button>
+                        </div>`;
+                }
+
+                container.innerHTML += `
+                        <div class="${cardClass}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="fw-bold mb-1">${course.courseCode}</h6>
+                                    <p class="text-dark small mb-1">${course.courseName}</p>
+                                    <span class="text-muted" style="font-size: 0.75rem;">${course.day} | ${course.startTime} - ${course.endTime}</span>
+                                </div>
+                                ${actionsHtml}
+                            </div>
+                        </div>
+                    `;
+            });
+        }
+
+        // 5. اختيار مادة (مع التحقق من الحد الأقصى للساعات)
+        window.selectCourse = function(index) {
+            const course = availableCourses[index];
+            let hrs = course.creditHours || 3;
+            const isLastTerm = document.getElementById('lastTermToggle').checked;
+            const maxHours = isLastTerm ? 21 : 18;
+            let currentTotal = selectedCourses.reduce((sum, c) => sum + (c.creditHours || 3), 0);
+            if (currentTotal + hrs > maxHours) {
+                alert("لا يمكن تجاوز الحد الأقصى");
+                return;
+            }
+            selectedCourses.push(course);
+            updateUI();
+        };
+
+        // 6. حذف مادة من الجدول
+        window.removeCourse = function(code) {
+            const index = selectedCourses.findIndex(c => c.courseCode === code);
+            if (index > -1) {
+                selectedCourses.splice(index, 1);
+                updateUI();
+            }
+        };
+        // 7. رسم الجدول الأسبوعي (بيستخدم dayIdMap عشان يلاقي الخلية الصح لكل يوم)
+        function renderSchedule() {
+            // تفريغ الأيام
+            document.querySelectorAll('.day-col').forEach(td => td.innerHTML = '');
+
+            selectedCourses.forEach(course => {
+                const targetId = dayIdMap[normalizeArabic(course.day)];
+                const td = targetId ? document.getElementById(targetId) : null;
+                if (td) {
+                    td.innerHTML += `
+                            <div class="schedule-item shadow-sm">
+                                <span class="remove-btn" onclick="removeCourse('${course.courseCode}')">&times;</span>
+                                <div class="fw-bold text-primary mb-1">${course.courseCode}</div>
+                                <div class="text-dark" style="font-size: 0.75rem; line-height: 1.2;">${course.courseName}</div>
+                                <div class="text-muted mt-1" style="font-size: 0.7rem;">${course.startTime} - ${course.endTime}</div>
+                            </div>
+                        `;
+                }
+            });
+        }
+
+        // 8. تحديث العدادات
+        function updateStats() {
+            document.getElementById('stat-m1-c').innerText = stats.m1C;
+            document.getElementById('stat-m1-e').innerText = stats.m1E;
+            document.getElementById('stat-m2-c').innerText = stats.m2C;
+            document.getElementById('stat-m2-e').innerText = stats.m2E;
+            document.getElementById('stat-sup-c').innerText = stats.supC;
+            document.getElementById('stat-sup-e').innerText = stats.supE;
+            document.getElementById('stat-univ').innerText = stats.univ;
+            document.getElementById('total-registered').innerText = stats.totalRegisteredHours;
+        }
+        // تحديث الشاشة بالكامل
+        function updateUI() {
+            calculateStats();
+            renderAvailableCourses();
+            renderSchedule();
+            updateStats();
+        }
+
+        // 9. تجهيز المودال لإضافة مادة جديدة (تصفير الحقول)
+        window.openModalForAdd = function() {
+            document.getElementById('manualModalTitle').innerText = 'إضافة مادة يدوياً';
+            document.getElementById('m-edit-index').value = -1;
+            document.getElementById('m-code').value = '';
+            document.getElementById('m-name').value = '';
+            document.getElementById('m-day').selectedIndex = 0;
+            document.getElementById('m-start').value = '';
+            document.getElementById('m-end').value = '';
+            document.getElementById('m-hours').value = '';
+        };
+
+        // 9.1 تجهيز المودال لتعديل مادة موجودة (تعبئة الحقول ببياناتها)
+        window.openModalForEdit = function(index) {
+            const course = availableCourses[index];
+            if (!course) return;
+
+            document.getElementById('manualModalTitle').innerText = 'تعديل مادة';
+            document.getElementById('m-edit-index').value = index;
+            document.getElementById('m-code').value = course.courseCode || '';
+            document.getElementById('m-name').value = course.courseName || '';
+            document.getElementById('m-day').value = course.day || 'السبت';
+            document.getElementById('m-start').value = course.startTime || '';
+            document.getElementById('m-end').value = course.endTime || '';
+            document.getElementById('m-hours').value = course.creditHours || '';
+
+            const modalEl = document.getElementById('manualAddModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modalInstance.show();
+        };
+
+        // 9.2 حفظ المادة (إضافة جديدة أو تعديل مادة موجودة) مع الـ Validation
+        window.saveCourse = function() {
+            const editIndex = parseInt(document.getElementById('m-edit-index').value, 10);
+
+            const code = document.getElementById('m-code').value.trim().toUpperCase();
+            const name = document.getElementById('m-name').value.trim();
+            const day = document.getElementById('m-day').value;
+            const startRaw = document.getElementById('m-start').value.trim();
+            const endRaw = document.getElementById('m-end').value.trim();
+            const hoursRaw = document.getElementById('m-hours').value.trim();
+
+            // --- Validation ---
+            // 1) عدم ترك حقول فارغة
+            if (!code || !name || !day || !startRaw || !endRaw || !hoursRaw) {
+                return alert('برجاء تعبئة جميع الحقول قبل الحفظ.');
+            }
+
+            // 2) الساعات المعتمدة لازم تكون رقم صحيح أكبر من صفر
+            const hours = Number(hoursRaw);
+            if (!Number.isInteger(hours) || hours <= 0) {
+                return alert('برجاء إدخال عدد ساعات معتمدة صحيح وأكبر من صفر.');
+            }
+
+            // 3) تنسيق الوقت (من - إلى) لازم يكون قابل للتحويل الرقمي عن طريق parseTime()
+            const parsedStart = parseTime(startRaw);
+            const parsedEnd = parseTime(endRaw);
+            if (parsedStart === null || parsedEnd === null) {
+                return alert('برجاء إدخال وقت بداية ونهاية صحيحين (أرقام فقط، مثال: 9 أو 1 للمسائي).');
+            }
+            if (parsedStart >= parsedEnd) {
+                return alert('وقت البداية لازم يكون قبل وقت النهاية.');
+            }
+            // --- نهاية الـ Validation ---
+
+            const courseData = {
+                courseCode: code,
+                courseName: name,
+                day: day,
+                startTime: startRaw,
+                endTime: endRaw,
+                creditHours: hours
+            };
+
+            if (!isNaN(editIndex) && editIndex >= 0 && availableCourses[editIndex]) {
+                // تعديل مادة موجودة
+                availableCourses[editIndex] = courseData;
+            } else {
+                // إضافة مادة جديدة
+                availableCourses.push(courseData);
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('manualAddModal')).hide();
+            updateUI();
+        };
+
+        // 10. إرسال الجدول للسيرفر
+        document.getElementById('btnSubmitRegistration').addEventListener('click', function() {
+            if (selectedCourses.length === 0) return alert('الجدول فارغ! برجاء اختيار مواد أولاً.');
+
+            fetch('/Registration/ConfirmRegistration', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // لو عامل [ValidateAntiForgeryToken] لازم تبعت التوكن هنا
+                },
+                body: JSON.stringify({
+                    selectedCourses: selectedCourses,
+                    totalRegisteredHours: stats.totalRegisteredHours
+                })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    alert('تم اعتماد الجدول بنجاح!');
+                    window.location.href = '/'; // توجيه للصفحة الرئيسية
+                })
+                .catch(err => console.error(err));
+        });
+        function calculateStats() {
+        stats.m1C = serverData.major1CompulsoryRemaining;
+        stats.m1E = serverData.major1ElectiveRemaining;
+        stats.m2C = serverData.major2CompulsoryRemaining;
+        stats.m2E = serverData.major2ElectiveRemaining;
+        stats.supC = serverData.supportingCompulsoryRemaining;
+        stats.supE = serverData.supportingElectiveRemaining;
+        stats.univ = serverData.univFacultyCompulsoryRemaining;
+        stats.totalRegisteredHours = 0;
+
+        const m1 = normalizeArabic(serverData.major1Name);
+        const m2 = normalizeArabic(serverData.major2Name);
+
+        selectedCourses.forEach(course => {
+            let hrs = course.creditHours || 3;
+            stats.totalRegisteredHours += hrs;
+
+            let cat = normalizeArabic(course.category || "");
+            let type = normalizeArabic(course.courseType || "");
+
+            if (cat === m1) {
+                if (type === "اجباري") stats.m1C = Math.max(0, stats.m1C - hrs);
+                if (type === "اختياري") stats.m1E = Math.max(0, stats.m1E - hrs);
+            }
+            else if (cat === m2) {
+                if (type === "اجباري") stats.m2C = Math.max(0, stats.m2C - hrs);
+                if (type === "اختياري") stats.m2E = Math.max(0, stats.m2E - hrs);
+            }
+            else if (cat === normalizeArabic("تخدم التخصص")) {
+                if (type === "اجباري") stats.supC = Math.max(0, stats.supC - hrs);
+                if (type === "اختياري") stats.supE = Math.max(0, stats.supE - hrs);
+            }
+            else if (cat && (cat.includes("جامعه") || cat.includes("كليه"))) {
+                if (type === "اجباري") stats.univ = Math.max(0, stats.univ - hrs);
+            }
+        });
+        }
+
+        function updateUI() {
+        calculateStats();
+        renderAvailableCourses();
+        renderSchedule();
+        updateStats();
+        }
+
+        updateUI();
+    </script>
+}

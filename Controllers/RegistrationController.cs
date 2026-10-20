@@ -1,0 +1,253 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Rasha7ly.Models;
+using Rasha7ly.ViewModels;
+using System.Diagnostics;
+using System.Security.Cryptography.Xml;
+
+namespace YourProjectName.Controllers
+{
+    public class RegistrationController : Controller
+    {
+        private readonly IWebHostEnvironment _env;
+
+        public RegistrationController(IWebHostEnvironment env)
+        {
+            _env = env;
+        }
+        // /Registration/Prerequisites
+        [HttpGet]
+        // صلحتلك الاسم هنا عشان ملف القسم يتقرأ
+        public IActionResult Prerequisites(string department = "الرياضيات وعلوم الحاسب")
+        {
+            var courses = new List<CourseSelectionItem>();
+            var debugMessages = new List<string>(); // لستة عشان نصطاد بيها المشكلة ونعرضها على الشاشة
+
+            string sharedReqPath = Path.Combine(_env.ContentRootPath, "Data", "لائحة_متطلبات_الجامعة_والكلية.csv");
+            string deptReqPath = Path.Combine(_env.ContentRootPath, "Data", $"لائحة_{department.Replace(" ", "_")}.csv");
+
+            void LoadCourses(string filePath)
+            {
+                if (System.IO.File.Exists(filePath))
+                {
+
+
+                    var lines = System.IO.File.ReadAllLines(filePath).Skip(1).ToList();
+                    debugMessages.Add($"عدد السطور المقروءة: {lines.Count}");
+
+                    foreach (var line in lines)
+                    {
+                        // ضفنا السيميكولون (;) كاحتمال لو الإكسيل حافظه بيه
+                        var columns = line.Split(new[] { '\t', ',', ';' }, StringSplitOptions.None);
+                        if (columns.Length >= 4)
+                        {
+                            courses.Add(new CourseSelectionItem
+                            {
+                                Code = columns[2].Trim(),
+                                Name = columns[3].Trim(),
+                                CreditHours = double.Parse(columns[4].Trim()),
+                                IsPassed = false
+                            });
+                        }
+                    }
+                }
+            }
+        
+
+            // هنا أهم حاجة: استدعاء الدالة للملفين!
+            LoadCourses(sharedReqPath);
+            LoadCourses(deptReqPath);
+
+            // هنبعت نتايج الفحص للشاشة
+            ViewBag.DebugInfo = debugMessages;
+
+            var viewModel = new PrerequisitesViewModel
+            {
+                SelectedDepartment = department,
+                AvailableCourses = courses
+            };
+
+            return View(viewModel);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SavePrerequisites(PrerequisitesViewModel model)
+        {
+            // 1. سحب أكواد المواد اللي الطالب نجح فيها
+            var passedCodes = model.AvailableCourses
+                .Where(c => c.IsPassed)
+                .Select(c => c.Code.Trim().ToUpper())
+                .ToList();
+
+            HttpContext.Session.SetString("PassedCourses", string.Join(",", passedCodes));
+
+            // 2. قراءة لوائح القسم ومتطلبات الجامعة (لمعرفة الساعات والمتطلبات السابقة)
+            var allRequirements = new List<CourseRequirement>();
+            string sharedReqPath = Path.Combine(_env.ContentRootPath, "Data", "لائحة_متطلبات_الجامعة_والكلية.csv");
+            string deptReqPath = Path.Combine(_env.ContentRootPath, "Data", $"لائحة_{model.SelectedDepartment.Replace(" ", "_")}.csv");
+
+            void LoadRequirements(string path)
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    foreach (var line in System.IO.File.ReadAllLines(path).Skip(1))
+                    {
+                        var cols = line.Split(new[] { ',', '\t', ';' }, StringSplitOptions.None);
+                        if (cols.Length >= 6)
+                        {
+                            allRequirements.Add(new CourseRequirement
+                            {
+                                Category = cols[0].Trim(),
+                                Type = cols[1].Trim(),
+                                Code = cols[2].Trim().ToUpper(),
+                                CreditHours = double.TryParse(cols[4].Trim(), out double h) ? h : 0,
+                                Prerequisite = cols[5].Trim().ToUpper()
+                            });
+                        }
+                    }
+                }
+            }
+
+            LoadRequirements(sharedReqPath);
+            LoadRequirements(deptReqPath);
+
+            // 3. قراءة الجدول العام (MasterSchedule.csv)
+            var allCourses = new List<ScheduleSlot>();
+            string csvPath = Path.Combine(_env.ContentRootPath, "Data", "MasterSchedule.csv");
+            if (System.IO.File.Exists(csvPath))
+            {
+                foreach (var line in (await System.IO.File.ReadAllLinesAsync(csvPath)).Skip(1))
+                {
+                    var cols = line.Split(',');
+                    if (cols.Length >= 6)
+                    {
+                        allCourses.Add(new ScheduleSlot
+                        {
+                            CourseCode = cols[0].Trim().ToUpper(),
+                            CourseName = cols[1].Trim(),
+                            Professor = cols[2].Trim(),
+                            Day = cols[3].Trim(),
+                            StartTime = cols[4].Trim(),
+                            EndTime = cols[5].Trim(),
+                        });
+                    }
+                }
+            }
+
+            await Task.Delay(1500); // محاكاة العصفور
+
+            // =========================================================
+            // 4. הـ LINQ Query السحري (بعد التعديل لدمج الساعات والمعلومات)
+            // =========================================================
+            var finalCourses = allCourses
+                // أ. المادة لازم تكون موجودة في لائحة قسم الطالب أو متطلبات الجامعة
+                .Where(c => allRequirements.Any(req => req.Code == c.CourseCode))
+
+                // ب. نستبعد المواد اللي الطالب نجح فيها
+                .Where(c => !passedCodes.Contains(c.CourseCode))
+
+                // ج. نتأكد إن الطالب نجح في الـ Prerequisites (لو موجودة)
+                .Where(c =>
+                {
+                    var req = allRequirements.First(r => r.Code == c.CourseCode);
+                    if (string.IsNullOrWhiteSpace(req.Prerequisite) || req.Prerequisite == "-" || req.Prerequisite.ToLower() == "none")
+                        return true;
+
+                    var prereqs = req.Prerequisite.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    return prereqs.All(p => passedCodes.Contains(p));
+                })
+                // د. السحر الجديد: سحب بيانات اللائحة ودمجها مع بيانات الجدول
+                .Select(c =>
+                {
+                    var reqInfo = allRequirements.First(r => r.Code == c.CourseCode);
+
+                    // بناخد الساعات ونحطها في المادة اللي هتتعرض
+                    c.CreditHours = reqInfo.CreditHours;
+
+                    // لو محتاجينهم في الـ Dashboard عشان نقسم بيهم المواد
+                    c.Category = reqInfo.Category; 
+                    c.CourseType = reqInfo.Type;
+
+                    return c;
+                })
+                .ToList();
+            
+            // =========================================================
+            // 5. حساب الساعات المتبقية (Generic)
+            // =========================================================
+            var passedDetails = allRequirements.Where(r => passedCodes.Contains(r.Code)).ToList();
+
+            // التخصص الأول (رياضيات بحتة)
+            var major1Name = allRequirements.Select(r => r.Category).FirstOrDefault(c => c.Contains("رياضيات")) ?? "الرياضيات";
+            // التخصص الثاني ديناميكي (علوم حاسب أو إحصاء حسب القسم اللي دخله الطالب)
+            var major2Name = allRequirements.Select(r => r.Category).FirstOrDefault(c => c != major1Name && c != "تخدم التخصص" && !c.Contains("جامعة")) ?? "التخصص الثاني";
+
+            var dashboardData = new DashboardViewModel
+            {
+                AvailableSchedule = finalCourses,
+                Major1Name = major1Name,
+                Major2Name = major2Name,
+
+                // خصم الساعات الناجحة من الإجمالي المطلوب (ولا يمكن أن يقل عن صفر)
+                Major1CompulsoryRemaining = Math.Max(0, 40 - passedDetails.Where(r => r.Category == major1Name && r.Type == "إجباري").Sum(r => r.CreditHours)),
+                Major1ElectiveRemaining = Math.Max(0, 16 - passedDetails.Where(r => r.Category == major1Name && r.Type == "اختياري").Sum(r => r.CreditHours)),
+
+                Major2CompulsoryRemaining = Math.Max(0, 40 - passedDetails.Where(r => r.Category == major2Name && r.Type == "إجباري").Sum(r => r.CreditHours)),
+                Major2ElectiveRemaining = Math.Max(0, 16 - passedDetails.Where(r => r.Category == major2Name && r.Type == "اختياري").Sum(r => r.CreditHours)),
+
+                SupportingCompulsoryRemaining = Math.Max(0, 9 - passedDetails.Where(r => r.Category == "تخدم التخصص" && r.Type == "إجباري").Sum(r => r.CreditHours)),
+                SupportingElectiveRemaining = Math.Max(0, 7 - passedDetails.Where(r => r.Category == "تخدم التخصص" && r.Type == "اختياري").Sum(r => r.CreditHours)),
+
+                // دمج الجامعة والكلية (4 كلية + 6 جامعة = 10 إجباري) (6 كلية اختياري)
+                UnivFacultyCompulsoryRemaining = Math.Max(0, 10 - passedDetails.Where(r => r.Category.Contains("جامعة") && r.Type == "إجباري").Sum(r => r.CreditHours)),
+                UnivFacultyElectiveRemaining = Math.Max(0, 6 - passedDetails.Where(r => r.Category.Contains("جامعة") && r.Type == "اختياري").Sum(r => r.CreditHours)),
+            };
+
+            var options = new System.Text.Json.JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+            string dashboardJson = System.Text.Json.JsonSerializer.Serialize(dashboardData, options);
+            HttpContext.Session.SetString("DashboardData", dashboardJson);
+
+            return RedirectToAction("Dashboard");
+        }
+        [HttpGet]
+        public IActionResult Dashboard()
+        {
+            // 1. استدعاء الداتا المفلترة من الـ Session
+            var dashboardJson = HttpContext.Session.GetString("DashboardData");
+
+            // لو مفيش داتا (الطالب دخل على الرابط مباشر)، نرجعه لأول خطوة
+            if (string.IsNullOrEmpty(dashboardJson))
+            {
+                return RedirectToAction("Prerequisites");
+            }
+
+            // 2. تحويل الـ JSON لـ ViewModel
+            var viewModel = System.Text.Json.JsonSerializer.Deserialize<DashboardViewModel>(dashboardJson);
+
+            // 3. تمرير الداتا للواجهة
+            return View(viewModel);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult ConfirmRegistration([FromBody] FinalRegistrationDto finalData)
+        {
+            // دي الدالة اللي الجافاسكريبت هيكلمها لما الطالب يضغط "إتمام التسجيل"
+
+            if (finalData == null || !finalData.SelectedCourses.Any())
+            {
+                return BadRequest("لم يتم اختيار أي مواد.");
+            }
+
+            // هنا بتكتب كود الحفظ في الـ Database
+            // مثلاً: _dbContext.StudentSchedules.Add(...);
+            // _dbContext.SaveChanges();
+
+            // مسح الـ Session بعد نجاح التسجيل
+            HttpContext.Session.Remove("DashboardData");
+            HttpContext.Session.Remove("PassedCourses");
+
+            return Ok(new { message = "تم تسجيل الجدول بنجاح!", redirectUrl = "/Home/Index" });
+        }
+    }
+}

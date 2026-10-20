@@ -1,0 +1,165 @@
+﻿@model Rasha7ly.ViewModels.PrerequisitesViewModel
+
+@{
+    ViewData["Title"] = "تأكيد المواد المكتملة";
+}
+
+<!-- شاشة التحميل (مخفية افتراضياً) -->
+<div id="loaderOverlay" class="loader-overlay d-none">
+    <div class="text-center text-white">
+        <div class="bird-container mb-4">
+            <span class="bird">🕊️</span>
+        </div>
+        <h3 class="fw-bold">.....جاري استخراج وتحليل البيانات</h3>
+        <p>نقوم بمطابقة الجدول مع مواد قسم الرياضيات وعلوم الحاسب ومتطلبات الجامعة</p>
+    </div>
+</div>
+
+<div class="container my-5" dir="rtl">
+    <div class="d-flex justify-content-center align-items-center mb-5">
+        <div class="badge bg-success p-2 px-3 rounded-pill text-white mx-3">1. المتطلبات السابقة</div>
+        <div class="text-muted mx-3">2. التسجيل</div>
+    </div>
+
+    <div class="mb-4">
+        <h2 class="fw-bold text-dark">تأكيد المواد المكتملة</h2>
+        <p class="text-muted">اختر جميع المواد التي أتممتها بنجاح لفتح المواد المتقدمة.</p>
+    </div>
+
+    <form asp-action="SavePrerequisites" method="post" id="uploadForm">
+        <div class="row g-3">
+            @for (int i = 0; i < Model.AvailableCourses.Count; i++)
+            {
+                <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm p-3 position-relative rounded-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="fw-bold text-dark">@Model.AvailableCourses[i].Code</span>
+                            <input type="hidden" asp-for="AvailableCourses[i].Code" />
+                            <input type="hidden" asp-for="AvailableCourses[i].Name" />
+                            
+                            <div class="form-check">
+                                <input class="form-check-input custom-checkbox" type="checkbox" asp-for="AvailableCourses[i].IsPassed" data-credit-hours="@Model.AvailableCourses[i].CreditHours" />
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0">@Model.AvailableCourses[i].Name</p>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-5 pt-3 border-top">
+            <button type="submit" class="btn btn-dark px-4 py-2 rounded-3">
+                الخطوة التالية &larr;
+            </button>
+            <div class="text-muted small">
+                <span id="selectedCount" class="fw-bold text-dark">0</span> ساعات معتمدة
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <style>
+        /* إضافة تأثير الماوس وتغيير شكل الكارت عند التحديد */
+        .course-card {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .course-card.selected-card {
+            border: 2px solid #212529 !important; /* إطار غامق للكارت المحدد */
+            background-color: #f8f9fa; /* لون خلفية خفيف */
+            transform: scale(1.02); /* تكبير الكارت سنة بسيطة */
+        }
+        /* CSS لشاشة التحميل الداكنة */
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(33, 37, 41, 0.95);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* CSS لحركة العصفور في دائرة */
+        .bird-container {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            position: relative;
+            animation: spinCircle 2.5s linear infinite;
+        }
+
+        .bird {
+            font-size: 3rem;
+            position: absolute;
+            top: -25px; /* يخلي العصفور على خط الدائرة */
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        @@keyframes spinCircle {
+            100% {
+                transform: rotate(-360deg);
+            }
+        }
+    </style>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const cards = document.querySelectorAll('.card');
+
+            cards.forEach(card => {
+                // نضيف الكلاس بتاعنا لكل كارت عشان التأثيرات
+                card.classList.add('course-card');
+
+                // لما تضغط على أي مكان في الكارت
+                card.addEventListener('click', function(e) {
+                    // نتأكد إنك مضغطش على الـ Checkbox نفسه عشان ميعكسش الأمر مرتين
+                    if (e.target.type !== 'checkbox') {
+                        const checkbox = this.querySelector('.custom-checkbox');
+                        checkbox.checked = !checkbox.checked;
+
+                        // نبلغ السيستم إن حالة الـ Checkbox اتغيرت عشان الحسابات تشتغل
+                        checkbox.dispatchEvent(new Event('change'));
+                    }
+                });
+            });
+
+            // الكود المسؤول عن حساب الساعات وتلوين الكارت
+            document.querySelectorAll('.custom-checkbox').forEach(cb => {
+                cb.addEventListener('change', function() {
+
+                    // 1. حساب إجمالي الساعات المعتمدة للمواد المتعلم عليها
+                    let totalHours = 0;
+                    document.querySelectorAll('.custom-checkbox:checked').forEach(checkedBox => {
+                        // بنسحب عدد الساعات من الداتا اللي حطيناها في الـ HTML
+                        let hours = parseFloat(checkedBox.getAttribute('data-credit-hours')) || 0;
+                        totalHours += hours;
+                    });
+
+                    // تحديث الرقم في الشاشة
+                    document.getElementById('selectedCount').innerText = totalHours;
+
+                    // 2. إضافة أو إزالة التأثير البصري من الكارت
+                    const parentCard = this.closest('.card');
+                    if (this.checked) {
+                        parentCard.classList.add('selected-card');
+                    } else {
+                        parentCard.classList.remove('selected-card');
+                    }
+                });
+            });
+        });
+        // تشغيل الأنيميشن وقت الإرسال
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            document.getElementById('loaderOverlay').classList.remove('d-none');
+        });
+    </script>
+}

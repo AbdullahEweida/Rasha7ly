@@ -1,0 +1,10 @@
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Rasha7ly.exe
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\appsettings.Development.json
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\appsettings.json
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Data\MasterSchedule.csv
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Data\لائحة_الرياضيات_وعلوم_الحاسب.csv
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Data\لائحة_متطلبات_الجامعة_والكلية.csv
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Rasha7ly.dll
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Rasha7ly.deps.json
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Rasha7ly.runtimeconfig.json
+E:\Asp.net Core Full\Rasha7ly\obj\Release\net10.0\PubTmp\Out\Rasha7ly.pdb
